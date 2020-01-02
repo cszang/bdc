@@ -1,0 +1,4 @@
+cordex_prAdjust_bav.rda filter=lfs diff=lfs merge=lfs -text
+cordex_tasAdjust_bav.rda filter=lfs diff=lfs merge=lfs -text
+cordex_tasminAdjust_bav.rda filter=lfs diff=lfs merge=lfs -text
+cordex_tasmaxAdjust_bav.rda filter=lfs diff=lfs merge=lfs -text

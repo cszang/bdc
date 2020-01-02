@@ -1,0 +1,106 @@
+---
+title: "Protected Areas of Bavaria"
+author: "RS-eco"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Protected Areas of Bavaria}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, echo=TRUE,
+  comment = "#>"
+)
+```
+
+# Create map of internal data (rasterized shapefile)
+
+```{r, fig.width=6, fig.height=7}
+# Load bdc & ggplot2 package
+library(bdc); library(dplyr); library(sf); library(ggplot2)
+
+# Load pa data from BDC package
+data(pa_bav_tk25, package="bdc")
+
+# Plot percentage cover by iucn cat
+ggplot() + geom_tile(data=pa_bav_tk25, aes(x=x, y=y, fill=perc_cov)) + 
+  facet_wrap(iucn_cat ~.) + coord_sf(ndiscr=0) + 
+  theme_classic() + labs(x="", y="") + 
+  scale_fill_gradientn(name="", na.value= "grey50",
+                       colours=rev(colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", 
+                                                      "yellow", "#FF7F00", "red", "#7F0000"))(255))) + 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=12, face="bold"))
+```
+
+# Create maps of PA shapefile
+
+Simple map of all designations using ggplot2
+
+```{r, fig.width=8, fig.height=6}
+data(bavaria, package="bdc")
+bavaria <- sf::st_as_sf(bavaria)
+data(pa_bav, package="bdc")
+
+ggplot() + geom_sf(data=pa_bav, aes(fill=DESIG_ENG), col=NA) +
+  geom_sf(data=bavaria, fill=NA) + theme_minimal() 
+```
+
+Map of all designations apart from landscape protection area using base plot
+
+```{r, fig.width=8, fig.height=8}
+levels(pa_bav$DESIG_ENG)[8] <- "Ramsar Site"
+levels(pa_bav$DESIG_ENG)[9] <- "Site of Community Importance"
+levels(pa_bav$DESIG_ENG)[10] <- "Special Protection Area"
+
+# names of the areas to plot and their colour 
+my_cols = data.frame(Names=c("Special Protection Area", #(Birds Directive)"
+                             "Site of Community Importance", #(Habitats Directive)
+                             "Nature Reserve",
+                             "National Park",
+                             "Ramsar Site"), #, Wetland of International Importance
+                     Color=c("hotpink3",
+                             "burlywood",
+                             "darkolivegreen1",
+                             "forestgreen",
+                             "steelblue"))
+my_cols$Names = as.character(my_cols$Names)  
+my_cols$Color = as.character(my_cols$Color) # making sure they are not factors
+
+#plot bavaria  
+par(bg="transparent")
+plot(sf::st_geometry(bavaria))
+#loop through areas and plot them
+for(i in 1:length(my_cols[,1])){
+  pa_bav %>% filter(DESIG_ENG == my_cols[i,1]) %>% st_geometry() %>% plot(col=my_cols[i,2], add=T)
+}
+#plot bavaria again
+plot(sf::st_geometry(bavaria), add=T) # the areas some-times overwrite the borders, that's not very pretty
+legend("bottom", legend = c(my_cols[,1]), cex =0.8, fill=my_cols[,2], bty="n", xpd = T,
+       inset = c(0,-0.1))
+```
+
+Same map as above, but with German legend
+
+```{r, fig.width=8, fig.height=8}
+#For German names change legend to names_D
+names_D = c("Vogelschutzgebiet", "FFH-Gebiet", "Naturschutzgebiet", "Nationalpark",
+            "Ramsar Schutzgebiet")
+
+par(bg="transparent")
+#plot bavaria  
+plot(sf::st_geometry(bavaria))
+#loop through areas and plot them
+for(i in 1:length(my_cols[,1])){
+  pa_bav %>% filter(DESIG_ENG == my_cols[i,1]) %>% st_geometry() %>% plot(col=my_cols[i,2], border=F, add=T)
+}
+#plot bavaria again
+plot(sf::st_geometry(bavaria), add=T) # the areas some-times overwrite the borders, that's not very pretty
+legend("left", legend = names_D, cex = 1.2, fill=my_cols[,2], bty="n", xpd = T,
+       inset = c(-0.1,-0.1))
+```
