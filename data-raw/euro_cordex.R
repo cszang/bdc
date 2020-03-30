@@ -3,7 +3,7 @@
 #' author: "RS-eco"
 #' ---
 
-rm(list=ls())
+rm(list=ls()); gc()
 library(raster); library(processNC); library(dplyr); library(lubridate); library(dismo); library(tidyr)
 
 # Please also make sure the raster and dismo package are installed
@@ -13,6 +13,7 @@ library(raster); library(processNC); library(dplyr); library(lubridate); library
 
 # Specify file directory
 filedir <- "/media/matt/Data/Documents/Wissenschaft/Data/"
+filedir <- "/home/matt/"
 
 # Load shapefile of Germany
 germany <- raster::getData(name="GADM", country="DEU", level=1,
@@ -50,30 +51,37 @@ rcps <- c("rcp26", "rcp45", "rcp85")
 # historical is not available for prAdjust and tasAdjust
 
 # Driving model
-gcms <- c("CNRM-CERFACS-CNRM-CM5", "ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MOHC-HadGEM2-ES", "MPI-M-MPI-ESM-LR") 
+#gcms <- c("CNRM-CERFACS-CNRM-CM5", "ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MOHC-HadGEM2-ES", "MPI-M-MPI-ESM-LR") 
+gcms <- c("ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MPI-M-MPI-ESM-LR")
 #' Models for which no files have been downloaded: "CCCma-CanESM2", "ECMWF-ERAINT", "IPSL-IPSL-CM5A-LR", 
 #' "MIROC-MIROC5", "NCC-NorESM1-M", "NOAA-GFDL-GFDL-ESM2G"
 
 # Ensemble
-ensembles <- c("r1i1p1", "r2i1p1", "r3i1p1", "r12i1p1")
+#ensembles <- c("r1i1p1", "r2i1p1", "r3i1p1", "r12i1p1")
+ensembles <- "r1i1p1"
 
 # RCM Model
-rcm_models <- c("ARPEGE51", "CCLM4-8-17", "HIRHAM5", "RACMO22E", "RCA4", "REMO2009", "WRF331F")
+#rcm_models <- c("ARPEGE51", "CCLM4-8-17", "HIRHAM5", "RACMO22E", "RCA4", "REMO2009", "WRF331F")
+rcm_models <- c("RACMO22E", "RCA4", "REMO2009")
 
 # Downscaling realisation
-rs <- c("v1", "v1a", "v2")
+rs <- "v1"
+#rs <- c("v1", "v1a", "v2")
 
 # Time Frequency
 tm_freq <- "mon"
 
 # Variable
-vars <- c("prAdjust", "tasAdjust", "tasmaxAdjust", "tasminAdjust")
+#vars <- c("prAdjust", "tasAdjust", "tasmaxAdjust", "tasminAdjust")
+vars <- c("prAdjust", "tasmaxAdjust", "tasminAdjust")
 
 # Time period (of observed data???)
 year_period <- c("1989-2010") # Is constant!!!
 
 #' ## Identify available file combinations
-rcms_long <- c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4", "DMI-HIRHAM5")
+#rcms_long <- c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4", "DMI-HIRHAM5")
+rcms_long <- c("KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4")
+
 month_period <- c(paste0(seq(1951,2091, by=10), "01-", seq(1960,2100, by=10), "12"),
                   "197001-197012", "209101-209911", "209101-209912")
 
@@ -107,6 +115,7 @@ length(not_incl_files)
 #' ## Crop files by extent of Germany
 avail_combinations$filename <- paste0(filedir, "/", avail_combinations$filename)
 avail_combinations$outfile <- sub("EURO_CORDEX", "EURO_CORDEX/DEU_Output", sub("EUR-11", "DEU", avail_combinations$filename))
+if(!dir.exists(paste0(filedir, "/DEU_Output"))){dir.create(paste0(filedir, "/DEU_Output"))}
 lapply(1:nrow(avail_combinations), function(x){
   if(!file.exists(avail_combinations$outfile[x])){
     cropNC(file=avail_combinations$filename[x], 
@@ -117,12 +126,13 @@ lapply(1:nrow(avail_combinations), function(x){
 raster::plot(raster::stack(avail_combinations$outfile[1], varname="prAdjust")[[1]])
 
 #' ## Mask data by Bavaria and turn data into data.frames
+if(!dir.exists(paste0(filedir, "/Bav_Output"))){dir.create(paste0(filedir, "/Bav_Output"))}
 lapply(1:nrow(avail_combinations), function(x){
   #print(x)
   if(!file.exists(gsub("DEU", "Bav", sub(".nc",".csv.xz", avail_combinations$outfile[x])))){
     if(!file.exists(sub(".nc", "_remap.nc", avail_combinations$outfile[x]))){
       remapNC(gridfile=list.files(paste0(system.file(package="processNC"), "/extdata"), 
-                                  pattern="euro-cordex_grid.txt", full.names=T), infile=avail_combinations$outfile[x],
+                                  pattern="euro-cordex_grid_bav.txt", full.names=T), infile=avail_combinations$outfile[x],
               outfile=sub(".nc", "_remap.nc", avail_combinations$outfile[x]))
     }
     raster::stack(sub(".nc", "_remap.nc", avail_combinations$outfile[x]), 
@@ -137,8 +147,8 @@ lapply(1:nrow(avail_combinations), function(x){
 })
 raster::plot(raster::stack(sub(".nc", "_remap.nc", avail_combinations$outfile[1]), varname="prAdjust")[[1]])
 sp::plot(bavaria, add=T)
-readr::read_csv(gsub("DEU", "Bav", sub(".nc",".csv.xz", avail_combinations$outfile[101]))) %>% 
-  filter(time == "X1962.01.15") %>% 
+readr::read_csv(gsub("DEU", "Bav", sub(".nc",".csv.xz", avail_combinations$outfile[10]))) %>% 
+  filter(time == "X1951.01.16") %>% 
   ggplot2::ggplot() + ggplot2::geom_tile(ggplot2::aes(x=x, y=y, fill=value)) + ggplot2::coord_map()
 
 #' ## Merge data files of subsequent years
@@ -178,7 +188,7 @@ summary(cordex_prAdjust_bav)
 
 # Add variable information
 cordex_prAdjust_bav <- cordex_prAdjust_bav %>% left_join(avail_combinations, by=c("path"="outfile")) %>%
-  select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
+  dplyr::select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
 head(cordex_prAdjust_bav)
 summary(cordex_prAdjust_bav)
 
@@ -189,21 +199,21 @@ cordex_prAdjust_bav$value <- round(cordex_prAdjust_bav$value, 2)
 save(cordex_prAdjust_bav, file="data/cordex_prAdjust_bav.rda", compress="xz"); rm(cordex_prAdjust_bav); gc()
 
 # Read all temperature files of Bavaria
-cordex_tasAdjust_bav <- dplyr::bind_rows(lapply(which(comb_files$variable== "tasAdjust"), function(x){
-  vroom::vroom(comb_files$outfile[[x]], id="outfile") %>% 
-    mutate(time = as.Date(gsub("[.]", "-", sub("X", "", time))), value=value-273.15)})) # Convert temperature to degree C
+#cordex_tasAdjust_bav <- dplyr::bind_rows(lapply(which(comb_files$variable== "tasAdjust"), function(x){
+#  vroom::vroom(comb_files$outfile[[x]], id="outfile") %>% 
+#    mutate(time = as.Date(gsub("[.]", "-", sub("X", "", time))), value=value-273.15)})) # Convert temperature to degree C
 
 # Add variable information
-cordex_tasAdjust_bav <- cordex_tasAdjust_bav %>% left_join(avail_combinations, by=c("path"="outfile")) %>%
-  select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
-head(cordex_tasAdjust_bav)
-summary(cordex_tasAdjust_bav)
+#cordex_tasAdjust_bav <- cordex_tasAdjust_bav %>% left_join(avail_combinations, by=c("path"="outfile")) %>%
+#  dplyr::select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
+#head(cordex_tasAdjust_bav)
+#summary(cordex_tasAdjust_bav)
 
 # Adapt file for better storage performance
-cordex_tasAdjust_bav$value <- round(cordex_tasAdjust_bav$value, 2)
+#cordex_tasAdjust_bav$value <- round(cordex_tasAdjust_bav$value, 2)
 
 #' Save to file
-save(cordex_tasAdjust_bav, file="data/cordex_tasAdjust_bav.rda", compress="xz"); rm(cordex_tasAdjust_bav); gc()
+#save(cordex_tasAdjust_bav, file="data/cordex_tasAdjust_bav.rda", compress="xz"); rm(cordex_tasAdjust_bav); gc()
 
 # Read all temperature files of Bavaria
 cordex_tasminAdjust_bav <- dplyr::bind_rows(lapply(which(comb_files$variable== "tasminAdjust"), function(x){
@@ -213,7 +223,7 @@ cordex_tasminAdjust_bav <- dplyr::bind_rows(lapply(which(comb_files$variable== "
 
 # Add variable information
 cordex_tasminAdjust_bav <- cordex_tasminAdjust_bav %>% left_join(avail_combinations, by=c("path"="outfile")) %>%
-  select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
+  dplyr::select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
 head(cordex_tasminAdjust_bav)
 summary(cordex_tasminAdjust_bav)
 
@@ -231,7 +241,7 @@ cordex_tasmaxAdjust_bav <- dplyr::bind_rows(lapply(which(comb_files$variable== "
 
 # Add variable information
 cordex_tasmaxAdjust_bav <- cordex_tasmaxAdjust_bav %>% left_join(avail_combinations, by=c("path"="outfile")) %>%
-  select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
+  dplyr::select(x,y,time,value,gcm,rcp,rcm,ensemble,rs)
 head(cordex_tasmaxAdjust_bav)
 summary(cordex_tasmaxAdjust_bav)
 
@@ -249,11 +259,11 @@ load("data/cordex_prAdjust_bav.rda")
 
 prAdjust_30yr <- cordex_prAdjust_bav %>% 
   mutate(yr = lubridate::year(time), mon = lubridate::month(time)) %>%
-  filter(yr %in% c(1971:2000, 2021:2050, 2071:2100)) %>%
-  mutate(yr = ifelse(yr %in% c(1971:2000),"past", 
+  filter(yr %in% c(1991:2015, 2021:2050, 2071:2100)) %>%
+  mutate(yr = ifelse(yr %in% c(1991:2015),"present", 
                      ifelse(yr %in% c(2021:2050), "future", "extfuture"))) %>% 
-  mutate(yr = factor(yr, levels=c("past", "future", "extfuture"), 
-                     labels=c("1971-2000", "2021-2050", "2071-2100"))) %>% 
+  mutate(yr = factor(yr, levels=c("present", "future", "extfuture"), 
+                     labels=c("1991-2015", "2021-2050", "2071-2100"))) %>% 
   group_by(x, y, mon, yr, gcm, rcp, rcm, ensemble, rs) %>% 
   summarise(mn=mean(value), err=sd(value), mini=min(value), maxi=max(value))
 rm(cordex_prAdjust_bav); invisible(gc())
@@ -262,11 +272,11 @@ load("data/cordex_tasminAdjust_bav.rda")
 
 tasminAdjust_30yr <- cordex_tasminAdjust_bav %>% 
   mutate(yr = lubridate::year(time), mon = lubridate::month(time)) %>%
-  filter(yr %in% c(1971:2000, 2021:2050, 2071:2100)) %>%
-  mutate(yr = ifelse(yr %in% c(1971:2000),"past", 
+  filter(yr %in% c(1991:2015, 2021:2050, 2071:2100)) %>%
+  mutate(yr = ifelse(yr %in% c(1991:2015),"present", 
                      ifelse(yr %in% c(2021:2050), "future", "extfuture"))) %>% 
-  mutate(yr = factor(yr, levels=c("past", "future", "extfuture"), 
-                     labels=c("1971-2000", "2021-2050", "2071-2100"))) %>% 
+  mutate(yr = factor(yr, levels=c("present", "future", "extfuture"), 
+                     labels=c("1991-2015", "2021-2050", "2071-2100"))) %>% 
   group_by(x, y, mon, yr, gcm, rcp, rcm, ensemble, rs) %>% 
   summarise(mn=mean(value), err=sd(value), mini=min(value), maxi=max(value))
 rm(cordex_tasminAdjust_bav); invisible(gc())
@@ -275,11 +285,11 @@ load("data/cordex_tasmaxAdjust_bav.rda")
 
 tasmaxAdjust_30yr <- cordex_tasmaxAdjust_bav %>% 
   mutate(yr = lubridate::year(time), mon = lubridate::month(time)) %>%
-  filter(yr %in% c(1971:2000, 2021:2050, 2071:2100)) %>%
-  mutate(yr = ifelse(yr %in% c(1971:2000),"past", 
+  filter(yr %in% c(1991:2015, 2021:2050, 2071:2100)) %>%
+  mutate(yr = ifelse(yr %in% c(1991:2015),"present", 
                      ifelse(yr %in% c(2021:2050), "future", "extfuture"))) %>% 
-  mutate(yr = factor(yr, levels=c("past", "future", "extfuture"), 
-                     labels=c("1971-2000", "2021-2050", "2071-2100"))) %>% 
+  mutate(yr = factor(yr, levels=c("present", "future", "extfuture"), 
+                     labels=c("1991-2015", "2021-2050", "2071-2100"))) %>% 
   group_by(x, y, mon, yr, gcm, rcp, rcm, ensemble, rs) %>% 
   summarise(mn=mean(value), err=sd(value), mini=min(value), maxi=max(value))
 rm(cordex_tasmaxAdjust_bav); invisible(gc())
@@ -291,11 +301,11 @@ tasmin <- tasminAdjust_30yr %>% ungroup() %>% dplyr::select(x,y,mon,yr,gcm,rcp,r
 tasmax <- tasmaxAdjust_30yr %>% ungroup() %>% dplyr::select(x,y,mon,yr,gcm,rcp,rcm,ensemble,rs,mn) %>% 
   group_split(yr, gcm, rcp, rcm, ensemble, rs, keep=F); rm(tasmaxAdjust_30yr)
 prec <- lapply(prec, function(z){z %>% group_by(x,y) %>% tidyr::spread(mon, mn)})
-tasmin <- lapply(tasmin, function(z){z %>% group_by(x,y) %>% tidyr::spread(mon, mn) %>% ungroup() %>% select(-c(x,y))})
-tasmax <- lapply(tasmax, function(z){z %>% group_by(x,y) %>% tidyr::spread(mon, mn) %>% ungroup() %>% select(-c(x,y))})
-prec_xy <- lapply(prec, function(z){z %>% ungroup() %>% select(c(x,y))})
-prec <- lapply(prec, function(z){z %>% ungroup() %>% select(-c(x,y))})
-bioclim <- lapply(1:93, function(x){dismo::biovars(as.matrix(prec[[x]]), as.matrix(tasmin[[x]]), as.matrix(tasmax[[x]]))})
+prec_xy <- lapply(prec, function(z){z %>% ungroup() %>% dplyr::select(c(x,y))})
+prec <- lapply(prec, function(z){z %>% ungroup() %>% dplyr::select(-c(x,y))})
+tasmin <- lapply(tasmin, function(z){z %>% group_by(x,y) %>% tidyr::spread(mon, mn) %>% ungroup() %>% dplyr::select(-c(x,y))})
+tasmax <- lapply(tasmax, function(z){z %>% group_by(x,y) %>% tidyr::spread(mon, mn) %>% ungroup() %>% dplyr::select(-c(x,y))})
+bioclim <- lapply(1:length(prec), function(x){dismo::biovars(as.matrix(prec[[x]]), as.matrix(tasmin[[x]]), as.matrix(tasmax[[x]]))})
 rm(prec, tasmin, tasmax); invisible(gc())
 cordex_bioclimAdjust_30yr_bav <- lapply(1:length(bioclim), function(x){
   dat <- as.data.frame(bioclim[[x]])
@@ -341,8 +351,8 @@ names(dat) <- group_key$id
 dat <- bind_rows(dat, .id="id") %>% 
   left_join(group_key, by="id") %>% dplyr::select(-id)
 colnames(dat)[22] <- "time_frame"
-cordex_bioclim_bav_tk25  <- dat %>% select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
-                                                     bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19)
+cordex_bioclim_bav_tk25  <- dat %>% dplyr::select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
+                                           bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19)
 head(cordex_bioclim_bav_tk25)
 #save(cordex_bioclim_bav_tk25, file="data/cordex_bioclim_bav_tk25.rda", compress="xz")
 readr::write_csv(cordex_bioclim_bav_tk25, "data/cordex_bioclim_bav_tk25.csv.xz")

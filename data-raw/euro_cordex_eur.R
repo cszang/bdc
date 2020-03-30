@@ -17,7 +17,8 @@ countries10 <- sf::st_as_sf(countries10)
 # and a Linux machine with cdo installed!
 
 # Specify file directory
-filedir <- "/media/matt/Data/Documents/Wissenschaft/Data/"
+#filedir <- "/media/matt/Data/Documents/Wissenschaft/Data/"
+filedir <- "/home/matt/"
 filedir <- paste0(filedir, "EURO_CORDEX")
 
 ####################
@@ -46,30 +47,36 @@ rcps <- c("rcp26", "rcp45", "rcp85")
 # historical is not available for prAdjust and tasAdjust
 
 # Driving model
-gcms <- c("CNRM-CERFACS-CNRM-CM5", "ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MOHC-HadGEM2-ES", "MPI-M-MPI-ESM-LR") 
+#gcms <- c("CNRM-CERFACS-CNRM-CM5", "ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MOHC-HadGEM2-ES", "MPI-M-MPI-ESM-LR") 
+gcms <- c("ICHEC-EC-EARTH", "IPSL-IPSL-CM5A-MR", "MPI-M-MPI-ESM-LR")
 #' Models for which no files have been downloaded: "CCCma-CanESM2", "ECMWF-ERAINT", "IPSL-IPSL-CM5A-LR", 
 #' "MIROC-MIROC5", "NCC-NorESM1-M", "NOAA-GFDL-GFDL-ESM2G"
 
 # Ensemble
-ensembles <- c("r1i1p1", "r2i1p1", "r3i1p1", "r12i1p1")
+#ensembles <- c("r1i1p1", "r2i1p1", "r3i1p1", "r12i1p1")
+ensembles <- "r1i1p1"
 
 # RCM Model
-rcm_models <- c("ARPEGE51", "CCLM4-8-17", "HIRHAM5", "RACMO22E", "RCA4", "REMO2009", "WRF331F")
+#rcm_models <- c("ARPEGE51", "CCLM4-8-17", "HIRHAM5", "RACMO22E", "RCA4", "REMO2009", "WRF331F")
+rcm_models <- c("RACMO22E", "RCA4", "REMO2009")
 
 # Downscaling realisation
-rs <- c("v1", "v1a", "v2")
+rs <- "v1"
+#rs <- c("v1", "v1a", "v2")
 
 # Time Frequency
 tm_freq <- "mon"
 
 # Variable
-vars <- c("prAdjust", "tasAdjust", "tasmaxAdjust", "tasminAdjust")
+#vars <- c("prAdjust", "tasAdjust", "tasmaxAdjust", "tasminAdjust")
+vars <- c("prAdjust", "tasmaxAdjust", "tasminAdjust")
 
 # Time period (of observed data???)
 year_period <- c("1989-2010") # Is constant!!!
 
 #' ## Identify available file combinations
 rcms_long <- c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4", "DMI-HIRHAM5")
+rcms_long <- c("KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4")
 
 #' ## Subset month period according to 30-yr periods
 month_period <- c(paste0(c(1971,1981,1991,2041,2051,2061,2071,2081,2091), "01-", c(1980,1990,2000,2050,2060,2070,2080,2090,2100, by=10), "12"),
@@ -80,7 +87,7 @@ unique(combinations$time_period)
 #' ## Add time_period to combinations
 combinations$time_frame <- ifelse(combinations$time_period %in% c("197101-198012", "198101-199012", "199101-200012"), "1971-2000", 
                                   ifelse(combinations$time_period %in% c("204101-205012", "205101-206012", "206101-207012"), "2041-2070", 
-                                         "2071-2099"))
+                                         "2071-2100"))
 unique(combinations$time_frame)
 
 filenames <- combinations %>% rowwise() %>%
@@ -100,14 +107,14 @@ lapply(1:nrow(avail_combinations), function(x){
     if(!file.exists(sub(".nc", "_remap.nc", avail_combinations$filename[x]))){
       remapNC(gridfile=list.files(paste0(system.file(package="processNC"), "/extdata"), 
                                   pattern="euro-cordex_grid_eur.txt", full.names=T), infile=avail_combinations$filename[x],
-              outfile=sub(".nc", "_remap.nc", avail_combinations$filename[x]))
+              outfile=sub("[.]nc", "_remap.nc", avail_combinations$filename[x]))
     }
-    dat <- raster::stack(sub(".nc", "_remap.nc", avail_combinations$filename[x]), 
+    dat <- raster::stack(sub("[.]nc", "_remap.nc", avail_combinations$filename[x]), 
                          varname = paste(avail_combinations$variable[x])) %>% raster::mask(countries10)
     writeRaster(dat, filename=sub("EURO_CORDEX/", "EURO_CORDEX/EUR/", avail_combinations$filename[x]), 
                 varname=paste(avail_combinations$variable[x]), overwrite=T)
     if(x != 1){
-      file.remove(sub(".nc", "_remap.nc", avail_combinations$filename[x]))   
+      file.remove(sub("[.]nc", "_remap.nc", avail_combinations$filename[x]))   
     }
   }
 })
@@ -168,7 +175,7 @@ plot(sf::st_geometry(countries10), add=T)
 
 ## Create bioclim files
 
-comb_files_wide <- comb_files %>% select(-c(data,infiles)) %>% spread(variable, outfile)
+comb_files_wide <- comb_files %>% dplyr::select(-c(data,infiles)) %>% spread(variable, outfile)
 
 prec <- lapply(comb_files_wide$prAdjust, stack)
 tasmin <- lapply(comb_files_wide$tasminAdjust, stack)
@@ -189,7 +196,7 @@ cordex_bioclim_eur <- cordex_bioclim_eur %>% left_join(comb_files_wide, by="id")
 head(cordex_bioclim_eur)
 summary(cordex_bioclim_eur)
 
-cordex_bioclim_eur  <- cordex_bioclim_eur %>% select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
+cordex_bioclim_eur  <- cordex_bioclim_eur %>% dplyr::select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
                                                      bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19)
 
 # Adapt file for better storage performance
