@@ -17,8 +17,7 @@ countries10 <- sf::st_as_sf(countries10)
 # and a Linux machine with cdo installed!
 
 # Specify file directory
-#filedir <- "/media/matt/Data/Documents/Wissenschaft/Data/"
-filedir <- "/home/matt/"
+filedir <- "/media/matt/Data/Documents/Wissenschaft/Data/"
 filedir <- paste0(filedir, "EURO_CORDEX")
 
 ####################
@@ -79,13 +78,14 @@ rcms_long <- c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-R
 rcms_long <- c("KNMI-RACMO22E", "MPI-CSC-REMO2009", "SMHI-RCA4")
 
 #' ## Subset month period according to 30-yr periods
-month_period <- c(paste0(c(1971,1981,1991,2041,2051,2061,2071,2081,2091), "01-", c(1980,1990,2000,2050,2060,2070,2080,2090,2100, by=10), "12"),
+month_period <- c(paste0(c(1991,2001,2011,2041,2051,2061,2071,2081,2091), "01-", 
+                         c(2000,2010,2020,2050,2060,2070,2080,2090,2100, by=10), "12"),
                   "209101-209911", "209101-209912")
 combinations <- expand.grid(variable=vars, gcm=gcms, ensemble=ensembles, rcp=rcps, rcm=rcms_long, rs=rs, time_period=month_period)
 unique(combinations$time_period)
 
 #' ## Add time_period to combinations
-combinations$time_frame <- ifelse(combinations$time_period %in% c("197101-198012", "198101-199012", "199101-200012"), "1971-2000", 
+combinations$time_frame <- ifelse(combinations$time_period %in% c("199101-200012", "200101-201012", "201101-202012"), "1991-2020", 
                                   ifelse(combinations$time_period %in% c("204101-205012", "205101-206012", "206101-207012"), "2041-2070", 
                                          "2071-2100"))
 unique(combinations$time_frame)
@@ -142,6 +142,14 @@ lapply(1:nrow(comb_files), function(x){
     dat <- stack(dat)
     dat <- setZ(dat, as.Date(gsub("[.]", "-", sub("X", "", names(dat)))))
     date <- getZ(dat)
+    
+    # Subset date
+    if(comb_files$time_frame[x] == "1991-2020"){
+      dat <- dat[[which(lubridate::year(date) %in% c(1991:2015))]]
+      comb_files$time_frame[x] <- "1991-2015"
+      date <- date[which(lubridate::year(date) %in% c(1991:2015))]
+    }
+    
     if(comb_files$variable[x]== "prAdjust"){
       ndays <- lubridate::days_in_month(getZ(dat))
       dat <- calc(dat, fun=function(x){x*ndays*86400}) # Convert precipitation from kg m-2 s-1 to mm month-1
@@ -168,7 +176,7 @@ lapply(1:nrow(comb_files), function(x){
     rm(dat); gc()
   }
 })
-raster::plot(raster::stack(comb_files$outfile[201], varname="tasmaxAdjust")[[1]])
+raster::plot(raster::stack(comb_files$outfile[11], varname="prAdjust")[[1]])
 plot(sf::st_geometry(countries10), add=T)
 
 ########################################
@@ -181,49 +189,55 @@ prec <- lapply(comb_files_wide$prAdjust, stack)
 tasmin <- lapply(comb_files_wide$tasminAdjust, stack)
 tasmax <- lapply(comb_files_wide$tasmaxAdjust, stack)
 
-bioclim <- lapply(1:93, function(x){dismo::biovars(prec[[x]], tasmin[[x]], tasmax[[x]])})
+bioclim <- lapply(1:length(prec), function(x){dismo::biovars(prec[[x]], tasmin[[x]], tasmax[[x]])})
 rm(prec, tasmin, tasmax); invisible(gc())
-lapply(1:93, function(x){writeRaster(bioclim[[x]], 
-                                     filename=sub(".nc", ".tif", gsub("prAdjust", "bioclim", comb_files_wide$prAdjust[[x]]), format="GTiff", options="COMPRESS=LZW"))})
-
-bioclim <- lapply(gsub("prAdjust", "bioclim", comb_files_wide$prAdjust), stack)
-cordex_bioclim_eur <- lapply(1:length(bioclim), function(x){as.data.frame(raster::rasterToPoints(bioclim[[x]]))}); rm(bioclim); invisible(gc())
+cordex_bioclim_eur <- lapply(1:length(bioclim), function(x){as.data.frame(raster::rasterToPoints(bioclim[[x]]))}); invisible(gc())
 cordex_bioclim_eur <- bind_rows(cordex_bioclim_eur, .id="id")
 colnames(cordex_bioclim_eur) <- c("id", "x", "y", paste0("bio", 1:19))
-comb_files_wide$id <- as.character(1:93)
+comb_files_wide$id <- as.character(1:length(bioclim))
 colnames(comb_files_wide)
-cordex_bioclim_eur <- cordex_bioclim_eur %>% left_join(comb_files_wide, by="id") %>% dplyr::select(-c(id, prAdjust, tasAdjust, tasmaxAdjust, tasminAdjust))
+cordex_bioclim_eur <- cordex_bioclim_eur %>% left_join(comb_files_wide, by="id") %>% 
+  dplyr::select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
+                bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19) %>%
+  dplyr::mutate_at(paste0("bio", 1:19), round, 2) # Round numbers for better storage performance
 head(cordex_bioclim_eur)
 summary(cordex_bioclim_eur)
 
-cordex_bioclim_eur  <- cordex_bioclim_eur %>% dplyr::select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
-                                                     bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19)
+#' Save to file
+#save(cordex_bioclim_eur, file="/home/matt/Desktop/cordex_bioclim_eur.rda", compress="xz")
+readr::write_csv(cordex_bioclim_eur, "/home/matt/Desktop/cordex_bioclim_eur.csv.xz")
+rm(cordex_bioclim_eur); gc()
 
-# Adapt file for better storage performance
-cordex_bioclim_eur$bio1 <- round(cordex_bioclim_eur$bio1, 2)
-cordex_bioclim_eur$bio2 <- round(cordex_bioclim_eur$bio2, 2)
-cordex_bioclim_eur$bio3 <- round(cordex_bioclim_eur$bio3, 2)
-cordex_bioclim_eur$bio4 <- round(cordex_bioclim_eur$bio4, 2)
-cordex_bioclim_eur$bio5 <- round(cordex_bioclim_eur$bio5, 2)
-cordex_bioclim_eur$bio6 <- round(cordex_bioclim_eur$bio6, 2)
-cordex_bioclim_eur$bio7 <- round(cordex_bioclim_eur$bio7, 2)
-cordex_bioclim_eur$bio8 <- round(cordex_bioclim_eur$bio8, 2)
-cordex_bioclim_eur$bio9 <- round(cordex_bioclim_eur$bio9, 2)
-cordex_bioclim_eur$bio10 <- round(cordex_bioclim_eur$bio10, 2)
-cordex_bioclim_eur$bio11 <- round(cordex_bioclim_eur$bio11, 2)
-cordex_bioclim_eur$bio12 <- round(cordex_bioclim_eur$bio12, 2)
-cordex_bioclim_eur$bio13 <- round(cordex_bioclim_eur$bio13, 2)
-cordex_bioclim_eur$bio14 <- round(cordex_bioclim_eur$bio14, 2)
-cordex_bioclim_eur$bio15 <- round(cordex_bioclim_eur$bio15, 2)
-cordex_bioclim_eur$bio16 <- round(cordex_bioclim_eur$bio16, 2)
-cordex_bioclim_eur$bio17 <- round(cordex_bioclim_eur$bio17, 2)
-cordex_bioclim_eur$bio18 <- round(cordex_bioclim_eur$bio18, 2)
-cordex_bioclim_eur$bio19 <- round(cordex_bioclim_eur$bio19, 2)
+#####
+
+#' Create bioclim data at 0.5° resolution
+
+prec <- lapply(comb_files_wide$prAdjust, stack)
+tasmin <- lapply(comb_files_wide$tasminAdjust, stack)
+tasmax <- lapply(comb_files_wide$tasmaxAdjust, stack)
+
+prec <- lapply(prec, function(x) aggregate(x, fact=4, fun=mean, expand=T))
+tasmin <- lapply(tasmin, function(x) aggregate(x, fact=4, fun=min, expand=T))
+tasmax <- lapply(tasmax, function(x) aggregate(x, fact=4, fun=max, expand=T))
+
+bioclim <- lapply(1:length(prec), function(x){dismo::biovars(prec[[x]], tasmin[[x]], tasmax[[x]])})
+rm(prec, tasmin, tasmax); invisible(gc())
+cordex_bioclim_eur <- lapply(1:length(bioclim), function(x){as.data.frame(raster::rasterToPoints(bioclim[[x]]))}); invisible(gc())
+cordex_bioclim_eur <- bind_rows(cordex_bioclim_eur, .id="id")
+colnames(cordex_bioclim_eur) <- c("id", "x", "y", paste0("bio", 1:19))
+comb_files_wide$id <- as.character(1:length(bioclim))
+colnames(comb_files_wide)
+cordex_bioclim_eur <- cordex_bioclim_eur %>% left_join(comb_files_wide, by="id") %>% 
+  dplyr::select(x, y, gcm, ensemble, rcm, rs, rcp, time_frame, bio1, bio2, bio3, bio4, bio5, bio6, bio7,
+                bio8, bio9, bio10, bio11, bio12, bio13, bio14, bio15, bio16, bio17, bio18, bio19) %>%
+  dplyr::mutate_at(paste0("bio", 1:19), round, 2) # Round numbers for better storage performance
+head(cordex_bioclim_eur)
+summary(cordex_bioclim_eur)
 
 #' Save to file
-save(cordex_bioclim_eur, file="/home/matt/Desktop/cordex_bioclim_eur.rda", compress="xz")
-readr::write_csv(cordex_bioclim_eur, "/home/matt/Desktop/cordex_bioclim_eur.csv.xz")
-#rm(cordex_bioclim_eur); gc()
+#save(cordex_bioclim_eur, file="/home/matt/Desktop/cordex_bioclim_eur.rda", compress="xz")
+readr::write_csv(cordex_bioclim_eur, "/home/matt/Desktop/cordex_bioclim_eur_p5deg.csv.xz")
+rm(cordex_bioclim_eur); gc()
 
 #dat <- readr::read_csv(comb_files$outfile[1]) 
 #dat %>% ggplot2::ggplot() + ggplot2::geom_raster(ggplot2::aes(x=x, y=y, fill=Jan)) + 
