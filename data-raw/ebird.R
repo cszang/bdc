@@ -9,6 +9,13 @@ gadm <- fortify(gadm)
 # Set file directory
 filedir <- "D:/"
 
+# Download ebird data
+#download.file(url="https://download.ebird.org/ebd/prepackaged/ebd_relJun-2020.tar", 
+#              destfile="/home/matt/ebd_relJun-2020.tar")
+              
+# => Checkout auk package!!!
+# see ebird script from Dynacom Project
+
 # Connect to ebird database
 con <- DBI::dbConnect(RSQLite::SQLite(), dbname = paste0(filedir, "/ebird_database.sqlite"))
 ebird <- tbl(con, "ebird")
