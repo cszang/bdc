@@ -3,21 +3,13 @@ title: "Biodiversity of Bavaria"
 author: "RS-eco"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: '4'
-  html_document:
-    toc: yes
-    toc_depth: 4
-editor_options: null
-  chunk_output_type: console
-chunk_output_type: console
+  word_document: default
+  pdf_document: default
 ---
 
-```{r setup, include = FALSE}
+```{r setup, include = FALSE, eval=F}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
   results="asis", cache=TRUE,
   echo=F, warning=F, message=F,
   fig.width=10, fig.height=8
@@ -35,7 +27,6 @@ library(zoo)
 
 # Define standard colour scheme
 bluewhitered <- colorRampPalette(c("#009392","#39b185","#9ccb86","#e9e29c","#eeb479","#e88471","#cf597e"))(255)
-#pie(rep(1,7),col=c("#009392","#39b185","#9ccb86","#e9e29c","#eeb479","#e88471","#cf597e"))
 ```
 
 ```{r}
@@ -51,7 +42,7 @@ bavaria <- sf::st_as_sf(bavaria)
 
 # Data Analysis
 
-Here, I perform a first analysis of different biodiversity data for Bavaria.
+Here, I perform a first analysis of different biodiversity data for Bavaria using IUCN range data.
 
 ```{r}
 data("amphibians_bav", package="bdc")
@@ -68,14 +59,37 @@ tk25_grid <- raster::projectRaster(tk25_grid, crs=sp::CRS("+init=epsg:4326"))
 
 nrow(amphibians_bav); sum(amphibians_bav$presence)
 
-dat <- raster::rasterize(amphibians_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+amphi <- raster::rasterize(amphibians_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
   raster::rasterToPoints() %>% data.frame()
-colnames(dat)
+bird <- raster::rasterize(bird_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+  raster::rasterToPoints() %>% data.frame()
+mam <- raster::rasterize(mammals_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+  raster::rasterToPoints() %>% data.frame()
+odo <- raster::rasterize(odonata_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+  raster::rasterToPoints() %>% data.frame()
+rep <- raster::rasterize(reptiles_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+  raster::rasterToPoints() %>% data.frame()
+gard_rep <- raster::rasterize(gard_reptiles_bav, tk25_grid) %>% raster::mask(tk25_grid) %>% 
+  raster::rasterToPoints() %>% data.frame()
+
+colnames(bird)
 
 # Plot species richness of individual taxa
-dat %>% group_by(x,y) %>% summarise(sr=sum(layer)) %>% 
-  ggplot() + geom_tile(aes(x=x,y=y,fill=sr)) + coord_sf()
+p1 <- amphi %>% ggplot() + geom_tile(aes(x=x,y=y,fill=layer)) + 
+  scale_fill_gradientn(name="Amphibian SR", colours=bluewhitered) + 
+  geom_sf(data=bavaria, fill=NA) + coord_sf()
+p2 <- bird %>% ggplot() + geom_tile(aes(x=x,y=y,fill=layer)) + 
+  scale_fill_gradientn(name="Bird SR", colours=bluewhitered) + 
+  geom_sf(data=bavaria, fill=NA) + coord_sf()
+p3 <- mam %>% ggplot() + geom_tile(aes(x=x,y=y,fill=layer)) + 
+  scale_fill_gradientn(name="Mammal SR", colours=bluewhitered) + 
+  geom_sf(data=bavaria, fill=NA) + coord_sf()
+p4 <- odo %>% ggplot() + geom_tile(aes(x=x,y=y,fill=layer)) + 
+  scale_fill_gradientn(name="Odonata SR", colours=bluewhitered) + 
+  geom_sf(data=bavaria, fill=NA) + coord_sf()
+p5 <- rep %>% ggplot() + geom_tile(aes(x=x,y=y,fill=layer)) + 
+  scale_fill_gradientn(name="Reptile SR", colours=bluewhitered) + 
+  geom_sf(data=bavaria, fill=NA) + coord_sf()
 
-
+p1 + p2 + p3 + p4 + p5
 ```
-
